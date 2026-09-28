@@ -1,0 +1,7 @@
+{
+  "name": "AI Tác nghiệp 2D & Mô phỏng 3D đối phó UAV, USV",
+  "description": "Hệ thống số thống nhất phục vụ nghiên cứu, tác nghiệp mô phỏng, nhận thức tình huống và huấn luyện đối phó các tình huống UAV/USV trên tàu chiến đấu mặt nước.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
