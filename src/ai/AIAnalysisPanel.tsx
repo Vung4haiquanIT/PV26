@@ -287,6 +287,81 @@ export const AIAnalysisPanel: React.FC<AIAnalysisPanelProps> = ({ state, setStat
             </div>
           )}
         </div>
+
+        {/* Interception Weapons Section */}
+        <div className="bg-[#050b1a] border border-cyan-950 p-3.5 rounded-lg space-y-3">
+          <div className="flex items-center justify-between border-b border-cyan-900/60 pb-2">
+            <span className="font-bold text-cyan-300 uppercase text-[11px] flex items-center gap-1.5 font-mono">
+              <ShieldAlert className="w-3.5 h-3.5 text-rose-400" /> VŨ KHÍ ĐÁNH CHẶN & HOẢ LỰC (CIWS)
+            </span>
+            {state.interceptionConfig?.active && (
+              <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono font-bold animate-pulse">
+                ĐANG BẬT: {state.interceptionConfig.weaponName}
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            {[
+              { id: 'ak630-std', name: 'Pháo AK-630 (2 loạt x 100 viên)', bursts: 2, rounds: 100, desc: 'Tốc độ 5000 v/p, tiêu diệt UAV/USV ở cự ly 2.2km.' },
+              { id: 'ak630-heavy', name: 'Pháo AK-630 Hỏa lực mạnh (3 loạt x 150 viên)', bursts: 3, rounds: 150, desc: 'Hỏa lực dày đặc, tỷ lệ thành công 99%.' },
+              { id: 'gun-145', name: 'Súng máy 14.5mm (3 loạt x 50 viên)', bursts: 3, rounds: 50, desc: 'Phù hợp đánh chặn mục tiêu tầm gần (< 2km).' },
+              { id: 'ciws-missile', name: 'Tên lửa phòng không cận chiến (1 đạn)', bursts: 1, rounds: 1, desc: 'Dẫn đường tự động, tiêu diệt từ xa 3.5km.' },
+            ].map(w => {
+              const isActive = state.interceptionConfig?.active && state.interceptionConfig.weaponId === w.id;
+              return (
+                <div key={w.id} className="bg-[#030712] border border-cyan-950 p-2.5 rounded-md flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <div className="text-white font-bold font-mono text-xs">{w.name}</div>
+                    <div className="text-[10px] text-slate-400">{w.desc}</div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (isActive) {
+                        setState(s => ({ ...s, interceptionConfig: null }));
+                      } else {
+                        setState(s => ({
+                          ...s,
+                          interceptionConfig: {
+                            weaponId: w.id,
+                            weaponName: w.name,
+                            bursts: w.bursts,
+                            roundsPerBurst: w.rounds,
+                            active: true
+                          },
+                          events: [
+                            {
+                              id: `ev-int-${Date.now()}`,
+                              time: Math.floor(s.time),
+                              title: `Kích hoạt hỏa lực đánh chặn: ${w.name}`,
+                              description: `Hệ thống điều khiển hỏa lực đã chọn ${w.name} (${w.bursts} loạt x ${w.rounds} viên). Tàu sẽ tự động khai hỏa khi mục tiêu vào tầm.`,
+                              type: 'ACTION'
+                            },
+                            ...s.events
+                          ]
+                        }));
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded text-[11px] font-bold font-mono transition-all ${
+                      isActive ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-800'
+                    }`}
+                  >
+                    {isActive ? '[ ĐANG HOẠT ĐỘNG ]' : '[ KÍCH HOẠT ]'}
+                  </button>
+                </div>
+              );
+            })}
+
+            {state.interceptionConfig?.active && (
+              <button
+                onClick={() => setState(s => ({ ...s, interceptionConfig: null }))}
+                className="w-full py-1.5 bg-rose-950/60 hover:bg-rose-900 border border-rose-800 text-rose-300 rounded text-[11px] font-mono font-bold transition-all"
+              >
+                [ TẮT ĐÁNH CHẶN (Để mục tiêu lao vào tàu) ]
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

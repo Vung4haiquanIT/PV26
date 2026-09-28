@@ -14,7 +14,18 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
   const [cameraMode, setCameraMode] = useState<'free' | 'ship' | 'target' | 'top'>('ship');
   const [zoomLevel, setZoomLevel] = useState<number>(45);
 
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const cameraModeRef = useRef(cameraMode);
+  cameraModeRef.current = cameraMode;
+
+  const zoomLevelRef = useRef(zoomLevel);
+  zoomLevelRef.current = zoomLevel;
+
   const selectedObject = state.objects.find(o => o.id === state.selectedObjectId);
+  const selectedObjectRef = useRef(selectedObject);
+  selectedObjectRef.current = selectedObject;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -28,17 +39,17 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
     scene.fog = new THREE.FogExp2(0x0ea5e9, 0.004);
 
     // Camera
-    const camera = new THREE.PerspectiveCamera(zoomLevel, width / height, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(zoomLevelRef.current, width / height, 0.1, 1000);
     camera.position.set(30, 20, 40);
 
     // Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
     renderer.setSize(width, height);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
 
-    // Lights (Bright Daytime Maritime)
+    // Lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 2.0);
     scene.add(ambientLight);
 
@@ -50,7 +61,7 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x0284c7, 1.5);
     scene.add(hemiLight);
 
-    // Ocean / Sea with distant mountains/islands as in reference image
+    // Ocean
     const oceanGeo = new THREE.PlaneGeometry(350, 350, 40, 40);
     const oceanMat = new THREE.MeshStandardMaterial({
       color: 0x0284c7,
@@ -60,10 +71,10 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
     });
     const ocean = new THREE.Mesh(oceanGeo, oceanMat);
     ocean.rotation.x = -Math.PI / 2;
-    ocean.position.y = -0.6;
+    ocean.position.y = -1.2;
     scene.add(ocean);
 
-    // Distant low-poly islands/mountains in background
+    // Mountains
     const mountainMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.6, flatShading: true });
     for (let i = 0; i < 4; i++) {
       const mGeo = new THREE.ConeGeometry(25 + i * 10, 18 + i * 5, 5);
@@ -73,7 +84,7 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
       scene.add(mMesh);
     }
 
-    // Load PV26_Gepard39_Detailed.glb Model for Own Ship (+Z forward)
+    // Ship Group
     const shipGroup = new THREE.Group();
     scene.add(shipGroup);
 
@@ -96,7 +107,6 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
       '/PV26_Gepard39_Detailed.glb',
       (gltf) => {
         const model = gltf.scene;
-        // Make Gepard 3.9 large and dominant in the viewport
         model.scale.set(0.22, 0.22, 0.22);
         model.rotation.y = 0;
         model.position.set(0, 0, 0);
@@ -111,7 +121,6 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
       undefined,
       (error) => {
         console.error('Error loading PV26_Gepard39_Detailed.glb:', error);
-        // Fallback procedural box if load fails
         const fallbackGeo = new THREE.BoxGeometry(4.2, 2.0, 16);
         const fallbackMat = new THREE.MeshStandardMaterial({ color: 0x64748b });
         const fallbackMesh = new THREE.Mesh(fallbackGeo, fallbackMat);
@@ -120,57 +129,13 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
       }
     );
 
-    // Object meshes dictionary
     const objectMeshMap = new Map<string, THREE.Group>();
-
-    state.objects.forEach((obj: SimulationObject) => {
-      if (obj.type === 'OWN_SHIP') return;
-
-      const group = new THREE.Group();
-
-      if (obj.type === 'UAV') {
-        const uavBodyGeo = new THREE.BoxGeometry(1.0, 0.3, 1.0);
-        const uavMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3, flatShading: true });
-        const body = new THREE.Mesh(uavBodyGeo, uavMat);
-        group.add(body);
-
-        [-0.6, 0.6].forEach(rx => {
-          [-0.6, 0.6].forEach(rz => {
-            const rotorGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.05, 8);
-            const rotorMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, flatShading: true });
-            const rotor = new THREE.Mesh(rotorGeo, rotorMat);
-            rotor.position.set(rx, 0.2, rz);
-            group.add(rotor);
-          });
-        });
-        group.scale.set(0.35, 0.35, 0.35); // Make UAV appear much smaller than Gepard 3.9
-      } else if (obj.type === 'USV') {
-        const boatGeo = new THREE.BoxGeometry(1.5, 0.8, 3.5);
-        const boatMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4, flatShading: true });
-        const boat = new THREE.Mesh(boatGeo, boatMat);
-        group.add(boat);
-
-        const cabinGeo = new THREE.BoxGeometry(1.0, 0.6, 1.2);
-        const cabinMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, flatShading: true });
-        const cabin = new THREE.Mesh(cabinGeo, cabinMat);
-        cabin.position.set(0, 0.7, 0.2);
-        group.add(cabin);
-        group.scale.set(0.45, 0.45, 0.45); // Make USV appear smaller than Gepard 3.9
-      } else {
-        const markerGeo = new THREE.OctahedronGeometry(1.0);
-        const markerMat = new THREE.MeshStandardMaterial({ color: 0xa855f7, roughness: 0.2, flatShading: true });
-        const marker = new THREE.Mesh(markerGeo, markerMat);
-        group.add(marker);
-      }
-
-      scene.add(group);
-      objectMeshMap.set(obj.id, group);
-    });
+    const tracerLinesMap = new Map<string, THREE.Line>();
 
     // Orbit state
     let isDragging = false;
     let previousMousePosition = { x: 0, y: 0 };
-    let spherical = { radius: zoomLevel, theta: Math.PI / 4, phi: Math.PI / 3 };
+    let spherical = { radius: zoomLevelRef.current, theta: Math.PI / 4, phi: Math.PI / 3 };
     let targetLookAt = new THREE.Vector3(0, 0, 0);
 
     const onMouseDown = (e: MouseEvent) => {
@@ -180,7 +145,7 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
 
     const onMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
-      if (cameraMode !== 'free') return;
+      if (cameraModeRef.current !== 'free') return;
 
       const deltaX = e.clientX - previousMousePosition.x;
       const deltaY = e.clientY - previousMousePosition.y;
@@ -212,6 +177,9 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
       animationFrameId = requestAnimationFrame(animate);
       t += 0.02;
 
+      camera.fov = zoomLevelRef.current;
+      camera.updateProjectionMatrix();
+
       const positions = oceanGeo.attributes.position;
       for (let i = 0; i < positions.count; i++) {
         const px = positions.getX(i);
@@ -220,7 +188,8 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
       }
       oceanGeo.attributes.position.needsUpdate = true;
 
-      const ownShipObj = state.objects.find(o => o.type === 'OWN_SHIP');
+      const currentState = stateRef.current;
+      const ownShipObj = currentState.objects.find(o => o.type === 'OWN_SHIP');
       if (ownShipObj) {
         const shipX = ownShipObj.position.x * 2;
         const shipZ = ownShipObj.position.y * 2;
@@ -229,52 +198,174 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
         shipGroup.position.x = shipX;
         shipGroup.position.z = shipZ;
         shipGroup.rotation.y = headingRad;
-        // Natural cruising wave bobbing and gentle pitch/roll
-        shipGroup.position.y = Math.sin(t * 4) * 0.12;
+        shipGroup.position.y = -0.3 + Math.sin(t * 4) * 0.12;
         shipGroup.rotation.x = Math.cos(t * 3) * 0.015;
         shipGroup.rotation.z = Math.sin(t * 3.5) * 0.012;
 
-        // Position wake flat on water behind ship based on heading
         const wakeDist = -10;
         wakeGroup.position.set(
           shipX + Math.sin(headingRad) * wakeDist,
-          -0.55,
+          -1.15,
           shipZ + Math.cos(headingRad) * wakeDist
         );
         wakeGroup.rotation.y = headingRad;
         wakeMat.opacity = 0.25 + Math.sin(t * 8) * 0.15;
       }
 
-      state.objects.forEach(obj => {
+      // Sync object meshes
+      const currentObjIds = new Set<string>();
+      currentState.objects.forEach(obj => {
         if (obj.type === 'OWN_SHIP') return;
-        const mesh = objectMeshMap.get(obj.id);
-        if (mesh) {
-          mesh.position.x = obj.position.x * 2;
-          mesh.position.z = obj.position.y * 2;
-          mesh.position.y = obj.type === 'UAV' ? (obj.altitude ? obj.altitude / 40 : 10) : 0.5;
-          mesh.rotation.y = (obj.heading * Math.PI) / 180;
+        currentObjIds.add(obj.id);
 
-          if (obj.status === 'ĐÃ NỔ / VA CHẠM') {
-            mesh.scale.set(2.2, 2.2, 2.2);
-            mesh.traverse(child => {
-              if ((child as THREE.Mesh).material) {
-                ((child as THREE.Mesh).material as THREE.MeshStandardMaterial).color.setHex(0xff4500);
-              }
+        let group = objectMeshMap.get(obj.id);
+        if (!group) {
+          const newGroup = new THREE.Group();
+          if (obj.type === 'UAV') {
+            const uavBodyGeo = new THREE.BoxGeometry(1.0, 0.3, 1.0);
+            const uavMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3, flatShading: true });
+            const body = new THREE.Mesh(uavBodyGeo, uavMat);
+            newGroup.add(body);
+
+            [-0.6, 0.6].forEach(rx => {
+              [-0.6, 0.6].forEach(rz => {
+                const rotorGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.05, 8);
+                const rotorMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, flatShading: true });
+                const rotor = new THREE.Mesh(rotorGeo, rotorMat);
+                rotor.position.set(rx, 0.2, rz);
+                newGroup.add(rotor);
+              });
             });
+            newGroup.scale.set(0.35, 0.35, 0.35);
+          } else if (obj.type === 'USV') {
+            const boatGeo = new THREE.BoxGeometry(1.5, 0.8, 3.5);
+            const boatMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4, flatShading: true });
+            const boat = new THREE.Mesh(boatGeo, boatMat);
+            newGroup.add(boat);
+
+            const cabinGeo = new THREE.BoxGeometry(1.0, 0.6, 1.2);
+            const cabinMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, flatShading: true });
+            const cabin = new THREE.Mesh(cabinGeo, cabinMat);
+            cabin.position.set(0, 0.7, 0.2);
+            newGroup.add(cabin);
+            newGroup.scale.set(0.45, 0.45, 0.45);
+          } else {
+            const markerGeo = new THREE.OctahedronGeometry(1.0);
+            const markerMat = new THREE.MeshStandardMaterial({ color: 0xa855f7, roughness: 0.2, flatShading: true });
+            const marker = new THREE.Mesh(markerGeo, markerMat);
+            newGroup.add(marker);
           }
+          scene.add(newGroup);
+          objectMeshMap.set(obj.id, newGroup);
+          group = newGroup;
+        }
+
+        group.position.x = obj.position.x * 2;
+        group.position.z = obj.position.y * 2;
+        if (obj.status === 'ĐÃ NỔ / VA CHẠM' || obj.status === 'ĐÃ TIÊU DIỆT') {
+          group.position.y = 0;
+        } else {
+          group.position.y = obj.type === 'UAV' ? (obj.altitude ? obj.altitude / 40 : 0) : 0;
+        }
+        group.rotation.y = (obj.heading * Math.PI) / 180;
+
+        if (obj.status === 'ĐÃ NỔ / VA CHẠM' || obj.status === 'ĐÃ TIÊU DIỆT') {
+          const pulse = 2.2 + Math.sin(t * 12) * 0.4;
+          group.scale.set(pulse, pulse, pulse);
+          group.traverse(child => {
+            if ((child as THREE.Mesh).material) {
+              const mat = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
+              mat.color.setHex(0xff2200);
+              mat.emissive.setHex(0xffaa00);
+              mat.emissiveIntensity = 1.0;
+            }
+          });
+        } else {
+          const baseScale = obj.type === 'UAV' ? 0.35 : obj.type === 'USV' ? 0.45 : 1.0;
+          group.scale.set(baseScale, baseScale, baseScale);
+          group.traverse(child => {
+            if ((child as THREE.Mesh).material) {
+              const mat = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
+              if (obj.type === 'UAV') {
+                mat.color.setHex(0xef4444);
+              } else if (obj.type === 'USV') {
+                mat.color.setHex(0xf59e0b);
+              } else {
+                mat.color.setHex(0xa855f7);
+              }
+              mat.emissive.setHex(0x000000);
+              mat.emissiveIntensity = 0;
+            }
+          });
         }
       });
 
-      if (cameraMode === 'top') {
+      // Remove deleted object meshes
+      objectMeshMap.forEach((mesh, id) => {
+        if (!currentObjIds.has(id)) {
+          scene.remove(mesh);
+          objectMeshMap.delete(id);
+        }
+      });
+
+      // Render red tracer bullet beams from ship to targets when interception is active and within range
+      const activeInterception = currentState.interceptionConfig?.active;
+      const currentTracerIds = new Set<string>();
+
+      if (activeInterception) {
+        currentState.objects.forEach(obj => {
+          if (obj.type === 'OWN_SHIP' || obj.status === 'ĐÃ TIÊU DIỆT' || obj.status === 'ĐÃ NỔ / VA CHẠM') return;
+          const rangeKm = obj.range !== undefined ? obj.range : Math.sqrt(obj.position.x * obj.position.x + obj.position.y * obj.position.y);
+          if (rangeKm <= 4.5) {
+            currentTracerIds.add(obj.id);
+            let line = tracerLinesMap.get(obj.id);
+            if (!line) {
+              const geom = new THREE.BufferGeometry();
+              const mat = new THREE.LineBasicMaterial({
+                color: 0xff0033,
+                transparent: true,
+                opacity: 0.9,
+                linewidth: 3
+              });
+              line = new THREE.Line(geom, mat);
+              scene.add(line);
+              tracerLinesMap.set(obj.id, line);
+            }
+
+            const targetGroup = objectMeshMap.get(obj.id);
+            if (targetGroup) {
+              const shipPos = shipGroup.position.clone().add(new THREE.Vector3(0, 2.0, 0));
+              const targetPos = targetGroup.position.clone();
+              const points = [shipPos, targetPos];
+              line.geometry.setFromPoints(points);
+              (line.material as THREE.LineBasicMaterial).opacity = 0.5 + Math.sin(t * 30 + obj.id.charCodeAt(0)) * 0.4;
+              line.visible = true;
+            }
+          }
+        });
+      }
+
+      tracerLinesMap.forEach((line, id) => {
+        if (!currentTracerIds.has(id) || !activeInterception) {
+          scene.remove(line);
+          line.geometry.dispose();
+          (line.material as THREE.Material).dispose();
+          tracerLinesMap.delete(id);
+        }
+      });
+
+      const mode = cameraModeRef.current;
+      const selObj = selectedObjectRef.current;
+
+      if (mode === 'top') {
         camera.position.set(0, 70, 0.1);
         camera.lookAt(0, 0, 0);
-      } else if (cameraMode === 'ship') {
+      } else if (mode === 'ship') {
         const shipPos = shipGroup.position;
-        // Framed close and majestic so Gepard 3.9 dominates the viewport
         camera.position.set(shipPos.x - 18 * Math.sin(shipGroup.rotation.y), shipPos.y + 5, shipPos.z - 22 * Math.cos(shipGroup.rotation.y));
         camera.lookAt(shipPos.x, shipPos.y + 1.5, shipPos.z);
-      } else if (cameraMode === 'target' && selectedObject && selectedObject.type !== 'OWN_SHIP') {
-        const targetGroup = objectMeshMap.get(selectedObject.id);
+      } else if (mode === 'target' && selObj && selObj.type !== 'OWN_SHIP') {
+        const targetGroup = objectMeshMap.get(selObj.id);
         if (targetGroup) {
           const tPos = targetGroup.position;
           camera.position.set(tPos.x + 12, tPos.y + 8, tPos.z + 12);
@@ -316,7 +407,7 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
       }
       renderer.dispose();
     };
-  }, [cameraMode, state.objects, state.selectedObjectId, zoomLevel]);
+  }, []);
 
   return (
     <div className="flex flex-col h-full bg-[#070e22] rounded-lg overflow-hidden border border-cyan-900/50 shadow-2xl relative">

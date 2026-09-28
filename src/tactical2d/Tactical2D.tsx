@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { SimulationObject, SimulationState } from '../types';
 import { Plus, Trash2, Eye, ShieldAlert, Crosshair, Navigation, Maximize2, Edit3, Check } from 'lucide-react';
+import { calculateRequiredDuration } from '../simulation/SimulationEngine';
 
 interface Tactical2DProps {
   state: SimulationState;
@@ -50,6 +51,8 @@ export const Tactical2D: React.FC<Tactical2DProps> = ({ state, setState }) => {
       name: advName,
       type: advType,
       position: { x, y },
+      initialPosition: { x, y },
+      initialAltitude: advType === 'UAV' ? advAltitude : 0,
       heading,
       speed: advSpeed,
       altitude: advType === 'UAV' ? advAltitude : 0,
@@ -61,11 +64,16 @@ export const Tactical2D: React.FC<Tactical2DProps> = ({ state, setState }) => {
       history: [{ x, y }]
     };
 
-    setState(s => ({
-      ...s,
-      objects: [...s.objects, newObj],
-      selectedObjectId: newId
-    }));
+    setState(s => {
+      const newObjects = [...s.objects, newObj];
+      const requiredDuration = calculateRequiredDuration(newObjects);
+      return {
+        ...s,
+        duration: requiredDuration,
+        objects: newObjects,
+        selectedObjectId: newId
+      };
+    });
     setSelectedObjId(newId);
     setShowAdvancedModal(false);
   };
@@ -126,6 +134,8 @@ export const Tactical2D: React.FC<Tactical2DProps> = ({ state, setState }) => {
       name: type === 'WAYPOINT' ? `WP-${idx}` : `${type === 'UAV' ? 'UAV-FPV' : type === 'USV' ? 'USV-CaoTốc' : 'Mục tiêu'} #${idx}`,
       type: type,
       position: { x, y },
+      initialPosition: { x, y },
+      initialAltitude: type === 'UAV' ? 500 : 0,
       heading: (angleDeg + 180) % 360,
       speed: type === 'UAV' ? 60 : type === 'USV' ? 30 : type === 'WAYPOINT' ? 0 : 15,
       altitude: type === 'UAV' ? 500 : 0,
@@ -137,22 +147,47 @@ export const Tactical2D: React.FC<Tactical2DProps> = ({ state, setState }) => {
       history: [{ x, y }]
     };
 
-    setState(s => ({
-      ...s,
-      objects: [...s.objects, newObj],
-      selectedObjectId: newId
-    }));
+    setState(s => {
+      const newObjects = [...s.objects, newObj];
+      const requiredDuration = calculateRequiredDuration(newObjects);
+      return {
+        ...s,
+        duration: requiredDuration,
+        objects: newObjects,
+        selectedObjectId: newId
+      };
+    });
     setSelectedObjId(newId);
   };
 
   const handleDeleteSelected = () => {
     const targetId = selectedObjId || state.selectedObjectId;
     if (!targetId || targetId === 'own-ship') return;
-    setState(s => ({
-      ...s,
-      objects: s.objects.filter(o => o.id !== targetId),
-      selectedObjectId: null
-    }));
+    setState(s => {
+      const newObjects = s.objects.filter(o => o.id !== targetId);
+      const requiredDuration = calculateRequiredDuration(newObjects);
+      return {
+        ...s,
+        duration: requiredDuration,
+        objects: newObjects,
+        selectedObjectId: null
+      };
+    });
+    setSelectedObjId(null);
+  };
+
+  const handleDeleteAllTargets = () => {
+    setState(s => {
+      const newObjects = s.objects.filter(o => o.type === 'OWN_SHIP');
+      return {
+        ...s,
+        objects: newObjects,
+        selectedObjectId: null,
+        duration: 600,
+        time: 0,
+        isPlaying: false
+      };
+    });
     setSelectedObjId(null);
   };
 
@@ -227,6 +262,13 @@ export const Tactical2D: React.FC<Tactical2DProps> = ({ state, setState }) => {
             className="px-2.5 py-1.5 rounded bg-emerald-950/80 border border-emerald-600 text-emerald-300 font-semibold flex items-center gap-1.5 hover:bg-emerald-900 transition-colors shadow-sm"
           >
             <Crosshair className="w-3.5 h-3.5 text-emerald-400" /> Tạo Mục Tiêu Nâng Cao
+          </button>
+          <button
+            onClick={handleDeleteAllTargets}
+            className="px-2.5 py-1.5 rounded bg-rose-950/80 border border-rose-700/80 text-rose-300 font-semibold flex items-center gap-1.5 hover:bg-rose-900 transition-colors shadow-sm"
+            title="Xóa tất cả mục tiêu"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-rose-400" /> Xóa tất cả
           </button>
         </div>
 
@@ -502,14 +544,33 @@ export const Tactical2D: React.FC<Tactical2DProps> = ({ state, setState }) => {
         <div className="bg-[#030712] border border-cyan-950 p-3 rounded-lg shadow-inner font-mono space-y-1.5">
           <div className="text-cyan-300 font-bold uppercase text-[11px] border-b border-cyan-950 pb-1 flex items-center justify-between">
             <span>THÔNG TIN MỤC TIÊU</span>
-            <span className="text-rose-400">♦ UAV-01 (FPV)</span>
+            <div className="flex items-center gap-2">
+              <span className="text-rose-400">
+                {selectedObject && selectedObject.type !== 'OWN_SHIP' ? `♦ ${selectedObject.name}` : '(Chưa chọn mục tiêu)'}
+              </span>
+              {selectedObject && selectedObject.type !== 'OWN_SHIP' && (
+                <button
+                  onClick={handleDeleteSelected}
+                  className="px-2 py-0.5 rounded bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-200 text-[10px] flex items-center gap-1 font-bold shadow transition-all"
+                  title="Xóa mục tiêu này"
+                >
+                  <Trash2 className="w-3 h-3" /> Xóa
+                </button>
+              )}
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-1 text-[11px]">
-            <span className="text-slate-400">Cự ly</span><span className="text-white font-bold">12.5 km</span>
-            <span className="text-slate-400">Phương vị</span><span className="text-white font-bold">045°</span>
-            <span className="text-slate-400">Độ cao</span><span className="text-white font-bold">800 m</span>
-            <span className="text-slate-400">Tốc độ</span><span className="text-white font-bold">65 m/s</span>
-          </div>
+          {selectedObject && selectedObject.type !== 'OWN_SHIP' ? (
+            <div className="grid grid-cols-2 gap-1 text-[11px]">
+              <span className="text-slate-400">Cự ly</span><span className="text-white font-bold">{selectedObject.range || 0} km</span>
+              <span className="text-slate-400">Phương vị</span><span className="text-white font-bold">{selectedObject.bearing || 0}°</span>
+              <span className="text-slate-400">Độ cao</span><span className="text-white font-bold">{selectedObject.altitude || 0} m</span>
+              <span className="text-slate-400">Tốc độ</span><span className="text-white font-bold">{selectedObject.speed} {selectedObject.type === 'UAV' ? 'm/s' : 'kts'}</span>
+            </div>
+          ) : (
+            <div className="text-[11px] text-slate-500 py-2 text-center">
+              Hãy chọn một mục tiêu trên màn hình Radar để xem thông số và xóa.
+            </div>
+          )}
         </div>
       </div>
 

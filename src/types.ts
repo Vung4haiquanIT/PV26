@@ -15,6 +15,8 @@ export interface SimulationObject {
   name: string;
   type: ObjectType;
   position: Position;
+  initialPosition?: Position;
+  initialAltitude?: number;
   heading: number; // 0 - 360 degrees
   speed: number; // knots or m/s
   altitude: number; // meters (for UAV)
@@ -142,4 +144,11 @@ export interface SimulationState {
   radarRange: number; // 20, 40, 80, 160 km
   radarMode: 'RADAR 360°' | 'SECTOR' | 'AWACS';
   viewMode: '2D+3D' | '2D_ONLY' | '3D_ONLY';
+  interceptionConfig?: {
+    weaponId: string;
+    weaponName: string;
+    bursts: number;
+    roundsPerBurst: number;
+    active: boolean;
+  } | null;
 }

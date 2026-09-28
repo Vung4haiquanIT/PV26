@@ -49,10 +49,13 @@ export const advanceObject = (obj: SimulationObject, deltaTime: number, speedFac
   if (obj.type === 'OWN_SHIP') return cloneSimulationObject(obj);
   if (obj.status === 'ĐÃ TIÊU DIỆT' || obj.status === 'ĐÃ NỔ / VA CHẠM') return cloneSimulationObject(obj);
 
+  const initPos = obj.initialPosition || obj.position;
+  const initialDist = calculateDistance(initPos, { x: 0, y: 0 });
+  const speed = obj.speed || 30;
+  const speedKmPerSec = 0.005 * (speed / 10);
+
   const headingRad = (obj.heading * Math.PI) / 180;
-  // Conversion factor: speed in knots or m/s scaled for tactical map display (km)
-  // e.g. 0.005 factor per unit speed per second
-  const movementFactor = 0.005 * (obj.speed / 10) * speedFactor * deltaTime;
+  const movementFactor = speedKmPerSec * speedFactor * deltaTime;
   const dx = Math.sin(headingRad) * movementFactor;
   const dy = Math.cos(headingRad) * movementFactor;
 
@@ -61,26 +64,39 @@ export const advanceObject = (obj: SimulationObject, deltaTime: number, speedFac
 
   const distanceToShip = calculateDistance({ x: newX, y: newY }, { x: 0, y: 0 });
   let status: ObjectStatus = obj.status;
+  let finalX = newX;
+  let finalY = newY;
+
   if (distanceToShip <= 0.8) {
     status = 'ĐÃ NỔ / VA CHẠM';
+    const dxShip = 0 - initPos.x;
+    const dyShip = 0 - initPos.y;
+    const distShip = Math.sqrt(dxShip * dxShip + dyShip * dyShip);
+    if (distShip > 0.8) {
+      const ux = dxShip / distShip;
+      const uy = dyShip / distShip;
+      finalX = parseFloat((0 - ux * 0.8).toFixed(2));
+      finalY = parseFloat((0 - uy * 0.8).toFixed(2));
+    }
   }
 
   let newAltitude = obj.altitude;
-  if (obj.type === 'UAV' && obj.altitude > 0) {
-    const initialDist = obj.range || 15;
-    const altRatio = Math.max(0, distanceToShip / initialDist);
-    newAltitude = Math.max(0, parseFloat((obj.altitude * altRatio).toFixed(1)));
+  const initAlt = obj.initialAltitude !== undefined ? obj.initialAltitude : (obj.altitude || 400);
+  if (obj.type === 'UAV' && initAlt > 0) {
+    const travelDistToImpact = Math.max(0, initialDist - 0.8);
+    const progress = initialDist > 0.8 ? Math.min(1, Math.max(0, (initialDist - distanceToShip) / travelDistToImpact)) : 1;
+    newAltitude = status === 'ĐÃ NỔ / VA CHẠM' ? 0 : Math.max(0, parseFloat((initAlt * (1 - progress)).toFixed(1)));
   }
 
-  const newHistory = [...obj.history, { x: newX, y: newY }];
+  const newHistory = [...obj.history, { x: finalX, y: finalY }];
   if (newHistory.length > 50) newHistory.shift();
 
   return {
     ...obj,
-    position: { x: newX, y: newY, z: newAltitude },
+    position: { x: finalX, y: finalY, z: newAltitude },
     altitude: newAltitude,
-    range: distanceToShip,
-    bearing: calculateBearing({ x: 0, y: 0 }, { x: newX, y: newY }),
+    range: calculateDistance({ x: finalX, y: finalY }, { x: 0, y: 0 }),
+    bearing: calculateBearing({ x: 0, y: 0 }, { x: finalX, y: finalY }),
     status,
     history: newHistory
   };
@@ -112,6 +128,112 @@ export const detectEvents = (prevState: SimulationState, nextState: SimulationSt
 };
 
 /**
+ * Calculates required simulation duration based on furthest/slowest target.
+ */
+export const calculateRequiredDuration = (objects: SimulationObject[]): number => {
+  let maxSecs = 60;
+  objects.forEach(obj => {
+    if (obj.type === 'OWN_SHIP' || obj.type === 'WAYPOINT') return;
+    const initPos = obj.initialPosition || obj.position;
+    const rangeKm = calculateDistance(initPos, { x: 0, y: 0 });
+    const travelDist = Math.max(0, rangeKm - 0.8);
+    const speed = obj.speed || 30;
+    const speedKmPerSec = 0.005 * (speed / 10);
+    if (speedKmPerSec > 0) {
+      const timeToImpact = travelDist / speedKmPerSec;
+      if (timeToImpact > maxSecs) {
+        maxSecs = timeToImpact;
+      }
+    }
+  });
+  return Math.ceil(maxSecs + 10);
+};
+
+/**
+ * Computes simulation state at any exact target time from initial positions.
+ */
+export const getStateAtTime = (state: SimulationState, targetTime: number): SimulationState => {
+  const isInterceptionActive = state.interceptionConfig?.active;
+  const impactDist = isInterceptionActive ? 4.0 : 0.8;
+
+  const updatedObjects = state.objects.map(obj => {
+    if (obj.type === 'OWN_SHIP' || obj.type === 'WAYPOINT') return cloneSimulationObject(obj);
+    const initPos = obj.initialPosition || obj.position;
+    const speed = obj.speed || 30;
+    const speedKmPerSec = 0.005 * (speed / 10);
+    const initialDist = calculateDistance(initPos, { x: 0, y: 0 });
+    const travelDistToImpact = Math.max(0, initialDist - impactDist);
+    const timeToImpact = speedKmPerSec > 0 ? travelDistToImpact / speedKmPerSec : 999999;
+
+    let x: number, y: number, altitude: number, status: ObjectStatus, distanceToShip: number;
+
+    if (targetTime >= timeToImpact) {
+      distanceToShip = impactDist;
+      status = isInterceptionActive ? 'ĐÃ TIÊU DIỆT' : 'ĐÃ NỔ / VA CHẠM';
+      altitude = 0;
+      const dx = 0 - initPos.x;
+      const dy = 0 - initPos.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > impactDist) {
+        const ux = dx / dist;
+        const uy = dy / dist;
+        x = parseFloat((0 - ux * impactDist).toFixed(2));
+        y = parseFloat((0 - uy * impactDist).toFixed(2));
+      } else {
+        x = initPos.x;
+        y = initPos.y;
+      }
+    } else {
+      const totalMovement = speedKmPerSec * targetTime;
+      const headingRad = (obj.heading * Math.PI) / 180;
+      x = parseFloat((initPos.x + Math.sin(headingRad) * totalMovement).toFixed(2));
+      y = parseFloat((initPos.y + Math.cos(headingRad) * totalMovement).toFixed(2));
+
+      distanceToShip = calculateDistance({ x, y }, { x: 0, y: 0 });
+      if (distanceToShip <= impactDist) {
+        status = isInterceptionActive ? 'ĐÃ TIÊU DIỆT' : 'ĐÃ NỔ / VA CHẠM';
+        altitude = 0;
+        const dx = 0 - initPos.x;
+        const dy = 0 - initPos.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > impactDist) {
+          const ux = dx / dist;
+          const uy = dy / dist;
+          x = parseFloat((0 - ux * impactDist).toFixed(2));
+          y = parseFloat((0 - uy * impactDist).toFixed(2));
+        }
+      } else {
+        status = obj.type === 'UAV' ? 'BÁO ĐỘNG' : 'MỤC TIÊU KHÓA';
+        const initAlt = obj.initialAltitude !== undefined ? obj.initialAltitude : (obj.altitude || 400);
+        altitude = obj.altitude;
+        if (obj.type === 'UAV' && initAlt > 0) {
+          const progress = initialDist > impactDist ? Math.min(1, Math.max(0, (initialDist - distanceToShip) / travelDistToImpact)) : 1;
+          altitude = Math.max(0, parseFloat((initAlt * (1 - progress)).toFixed(1)));
+        }
+      }
+    }
+
+    const history = [{ x: initPos.x, y: initPos.y }, { x, y }];
+
+    return {
+      ...obj,
+      position: { x, y, z: altitude },
+      altitude,
+      range: distanceToShip,
+      bearing: calculateBearing({ x: 0, y: 0 }, { x, y }),
+      status,
+      history
+    };
+  });
+
+  return {
+    ...state,
+    time: targetTime,
+    objects: updatedObjects
+  };
+};
+
+/**
  * Simulation Engine core tick function.
  * Immutably advances the simulation state by deltaTime.
  */
@@ -127,14 +249,7 @@ export const tick = (state: SimulationState, deltaTime: number = 0.5): Simulatio
     };
   }
 
-  const updatedObjects = state.objects.map(obj => advanceObject(obj, deltaTime, state.speed));
-
-  const nextStateDraft: SimulationState = {
-    ...state,
-    time: nextTime,
-    objects: updatedObjects
-  };
-
+  const nextStateDraft = getStateAtTime(state, nextTime);
   const detected = detectEvents(state, nextStateDraft);
   const updatedEvents = detected.length > 0 ? [...detected, ...state.events] : state.events;
 

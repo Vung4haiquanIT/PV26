@@ -1,7 +1,7 @@
 import React from 'react';
 import { Play, Pause, Square, RotateCcw, FastForward, History } from 'lucide-react';
 import { SimulationState } from '../types';
-import { createInitialSimulationState } from '../scenario/initialScenario';
+import { getStateAtTime, calculateDistance, calculateBearing } from '../simulation/SimulationEngine';
 
 interface TimelineControlProps {
   state: SimulationState;
@@ -26,7 +26,25 @@ export const TimelineControl: React.FC<TimelineControlProps> = ({ state, setStat
   };
 
   const handleReset = () => {
-    setState(createInitialSimulationState());
+    setState(s => ({
+      ...s,
+      time: 0,
+      isPlaying: false,
+      objects: s.objects.map(obj => {
+        if (obj.type === 'OWN_SHIP') return { ...obj, status: 'SẢN SÀNG' };
+        const initPos = obj.initialPosition || obj.position;
+        const initAlt = obj.initialAltitude !== undefined ? obj.initialAltitude : (obj.type === 'UAV' ? 500 : 0);
+        return {
+          ...obj,
+          position: { ...initPos, z: initAlt },
+          altitude: initAlt,
+          status: obj.type === 'WAYPOINT' ? 'TUẦN TRA' : 'BÁO ĐỘNG',
+          range: calculateDistance(initPos, { x: 0, y: 0 }),
+          bearing: calculateBearing({ x: 0, y: 0 }, initPos),
+          history: [initPos]
+        };
+      })
+    }));
   };
 
   const handleSpeedChange = (speed: number) => {
@@ -35,7 +53,7 @@ export const TimelineControl: React.FC<TimelineControlProps> = ({ state, setStat
 
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = parseFloat(e.target.value);
-    setState(s => ({ ...s, time }));
+    setState(s => getStateAtTime(s, time));
   };
 
   return (
@@ -91,14 +109,23 @@ export const TimelineControl: React.FC<TimelineControlProps> = ({ state, setStat
 
       {/* Timeline Scrubber & Milestones */}
       <div className="flex-1 max-w-2xl mx-8 hidden md:block">
-        <div className="flex justify-between text-[11px] font-mono text-slate-400 mb-1">
-          <span>00:00</span>
-          <span className="text-cyan-400">00:15 Bắt đầu</span>
-          <span className="text-amber-400">00:30 Diễn biến</span>
-          <span className="text-rose-400">00:45 Tiêu diệt</span>
-          <span>01:30 Đánh chặn</span>
-          <span>10:00 Kết thúc</span>
-        </div>
+        {(() => {
+          const dur = state.duration || 600;
+          const formatMs = (s: number) => {
+            const m = Math.floor(s / 60);
+            const sec = Math.floor(s % 60);
+            return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+          };
+          return (
+            <div className="flex justify-between text-[11px] font-mono text-slate-400 mb-1">
+              <span>00:00</span>
+              <span className="text-cyan-400">{formatMs(dur * 0.25)} Tiếp cận</span>
+              <span className="text-amber-400">{formatMs(dur * 0.5)} Cận chiến</span>
+              <span className="text-rose-400">{formatMs(dur * 0.75)} Đánh chặn</span>
+              <span>{formatMs(dur)} Kết thúc</span>
+            </div>
+          );
+        })()}
         <div className="relative flex items-center">
           <input
             type="range"

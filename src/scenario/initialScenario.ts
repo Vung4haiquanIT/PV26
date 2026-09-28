@@ -1,4 +1,5 @@
 import { Scenario, SimulationState } from '../types';
+import { calculateRequiredDuration } from '../simulation/SimulationEngine';
 
 export const initialScenarioData: Scenario = {
   id: 'sc-01',
@@ -23,6 +24,8 @@ export const initialScenarioData: Scenario = {
         name: 'UAV-01 (FPV / Trinh sát)',
         type: 'UAV',
         position: { x: 8.5, y: 9.1 }, // ~12.5km distance
+        initialPosition: { x: 8.5, y: 9.1 },
+        initialAltitude: 800,
         heading: 225,
         speed: 65, // m/s (~126 knots)
         altitude: 800,
@@ -31,13 +34,14 @@ export const initialScenarioData: Scenario = {
         range: 12.5,
         bearing: 45,
         rcs: 0.1,
-        history: [{ x: 9.0, y: 9.5 }, { x: 8.8, y: 9.3 }, { x: 8.5, y: 9.1 }]
+        history: [{ x: 8.5, y: 9.1 }]
       },
       {
         id: 'usv-01',
         name: 'USV-01 (Tự sát cao tốc)',
         type: 'USV',
         position: { x: 6.8, y: 0.5 }, // ~6.8km distance
+        initialPosition: { x: 6.8, y: 0.5 },
         heading: 270,
         speed: 28, // knots
         altitude: 0,
@@ -46,13 +50,14 @@ export const initialScenarioData: Scenario = {
         range: 6.8,
         bearing: 85,
         rcs: 2.5,
-        history: [{ x: 7.5, y: 0.6 }, { x: 7.1, y: 0.55 }, { x: 6.8, y: 0.5 }]
+        history: [{ x: 6.8, y: 0.5 }]
       },
       {
         id: 'target-02',
         name: 'Tàu lạ (Khả nghi)',
         type: 'TARGET',
         position: { x: 15.2, y: 10.1 }, // ~18.2km
+        initialPosition: { x: 15.2, y: 10.1 },
         heading: 190,
         speed: 14,
         altitude: 0,
@@ -61,7 +66,7 @@ export const initialScenarioData: Scenario = {
         range: 18.2,
         bearing: 140,
         rcs: 15.0,
-        history: [{ x: 15.5, y: 10.5 }, { x: 15.2, y: 10.1 }]
+        history: [{ x: 15.2, y: 10.1 }]
       }
     ]
   },
@@ -119,8 +124,8 @@ export const initialScenarioData: Scenario = {
 };
 
 export const createInitialSimulationState = (): SimulationState => ({
-  time: 90, // 01:30
-  duration: 600, // 10 minutes max
+  time: 0,
+  duration: calculateRequiredDuration(initialScenarioData.initialState.objects),
   isPlaying: false,
   speed: 1,
   currentScenario: initialScenarioData,
