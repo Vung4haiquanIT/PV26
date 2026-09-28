@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { SimulationState, SimulationObject } from '../types';
 import { Camera, Eye, Crosshair, Compass, RefreshCw, Sun, Maximize2, Sliders, Shield, Navigation, Mountain, Ruler, Layers } from 'lucide-react';
 
@@ -72,49 +73,38 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
       scene.add(mMesh);
     }
 
-    // Materials for Warship
-    const hullMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4, metalness: 0.3, flatShading: true });
-    const superstructureMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.3, metalness: 0.4, flatShading: true });
-    const deckMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7, flatShading: true });
-    const radarMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.2, flatShading: true });
-
-    // Build Own Ship Group
+    // Load PV26_Warship.glb Model for Own Ship
     const shipGroup = new THREE.Group();
-
-    const hullGeo = new THREE.BoxGeometry(4.2, 2.0, 16);
-    const hull = new THREE.Mesh(hullGeo, hullMat);
-    hull.position.y = 1.0;
-    hull.castShadow = true;
-    shipGroup.add(hull);
-
-    const bowGeo = new THREE.ConeGeometry(2.1, 5, 4);
-    const bow = new THREE.Mesh(bowGeo, hullMat);
-    bow.rotation.x = Math.PI / 2;
-    bow.rotation.y = Math.PI / 4;
-    bow.position.set(0, 1.0, 9.5);
-    shipGroup.add(bow);
-
-    const deckGeo = new THREE.BoxGeometry(4.0, 0.1, 15);
-    const deck = new THREE.Mesh(deckGeo, deckMat);
-    deck.position.set(0, 2.05, 0.5);
-    shipGroup.add(deck);
-
-    const superGeo = new THREE.BoxGeometry(3.2, 2.8, 6);
-    const superstructure = new THREE.Mesh(superGeo, superstructureMat);
-    superstructure.position.set(0, 3.5, 1);
-    shipGroup.add(superstructure);
-
-    const mastGeo = new THREE.CylinderGeometry(0.2, 0.4, 4.5, 6);
-    const mast = new THREE.Mesh(mastGeo, superstructureMat);
-    mast.position.set(0, 6.25, 1);
-    shipGroup.add(mast);
-
-    const domeGeo = new THREE.SphereGeometry(0.6, 8, 8);
-    const dome = new THREE.Mesh(domeGeo, radarMat);
-    dome.position.set(0, 8.7, 1);
-    shipGroup.add(dome);
-
     scene.add(shipGroup);
+
+    const gltfLoader = new GLTFLoader();
+    gltfLoader.load(
+      '/PV26_Warship.glb',
+      (gltf) => {
+        const model = gltf.scene;
+        // Scale and orient model (+X bow aligned to simulation forward convention)
+        model.scale.set(0.08, 0.08, 0.08);
+        model.rotation.y = -Math.PI / 2;
+        model.position.set(0, 0, 0);
+        model.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        });
+        shipGroup.add(model);
+      },
+      undefined,
+      (error) => {
+        console.error('Error loading PV26_Warship.glb:', error);
+        // Fallback procedural box if load fails
+        const fallbackGeo = new THREE.BoxGeometry(4.2, 2.0, 16);
+        const fallbackMat = new THREE.MeshStandardMaterial({ color: 0x64748b });
+        const fallbackMesh = new THREE.Mesh(fallbackGeo, fallbackMat);
+        fallbackMesh.position.y = 1.0;
+        shipGroup.add(fallbackMesh);
+      }
+    );
 
     // Object meshes dictionary
     const objectMeshMap = new Map<string, THREE.Group>();
