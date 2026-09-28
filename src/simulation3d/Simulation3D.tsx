@@ -73,17 +73,31 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
       scene.add(mMesh);
     }
 
-    // Load PV26_Warship_Detailed.glb Model for Own Ship (+Z forward)
+    // Load PV26_Gepard39_Detailed.glb Model for Own Ship (+Z forward)
     const shipGroup = new THREE.Group();
     scene.add(shipGroup);
 
+    // Flat Water Wake / Foam trail lying flush with sea surface behind ship
+    const wakeGeo = new THREE.PlaneGeometry(4, 16);
+    wakeGeo.rotateX(-Math.PI / 2);
+    const wakeMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.35,
+      side: THREE.DoubleSide
+    });
+    const wakeMesh = new THREE.Mesh(wakeGeo, wakeMat);
+    const wakeGroup = new THREE.Group();
+    wakeGroup.add(wakeMesh);
+    scene.add(wakeGroup);
+
     const gltfLoader = new GLTFLoader();
     gltfLoader.load(
-      '/PV26_Warship_Detailed.glb',
+      '/PV26_Gepard39_Detailed.glb',
       (gltf) => {
         const model = gltf.scene;
-        // Scale and orient model (+Z bow forward)
-        model.scale.set(0.08, 0.08, 0.08);
+        // Make Gepard 3.9 large and dominant in the viewport
+        model.scale.set(0.22, 0.22, 0.22);
         model.rotation.y = 0;
         model.position.set(0, 0, 0);
         model.traverse((child) => {
@@ -96,7 +110,7 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
       },
       undefined,
       (error) => {
-        console.error('Error loading PV26_Warship_Detailed.glb:', error);
+        console.error('Error loading PV26_Gepard39_Detailed.glb:', error);
         // Fallback procedural box if load fails
         const fallbackGeo = new THREE.BoxGeometry(4.2, 2.0, 16);
         const fallbackMat = new THREE.MeshStandardMaterial({ color: 0x64748b });
@@ -129,6 +143,7 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
             group.add(rotor);
           });
         });
+        group.scale.set(0.35, 0.35, 0.35); // Make UAV appear much smaller than Gepard 3.9
       } else if (obj.type === 'USV') {
         const boatGeo = new THREE.BoxGeometry(1.5, 0.8, 3.5);
         const boatMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4, flatShading: true });
@@ -140,6 +155,7 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
         const cabin = new THREE.Mesh(cabinGeo, cabinMat);
         cabin.position.set(0, 0.7, 0.2);
         group.add(cabin);
+        group.scale.set(0.45, 0.45, 0.45); // Make USV appear smaller than Gepard 3.9
       } else {
         const markerGeo = new THREE.OctahedronGeometry(1.0);
         const markerMat = new THREE.MeshStandardMaterial({ color: 0xa855f7, roughness: 0.2, flatShading: true });
@@ -206,9 +222,27 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
 
       const ownShipObj = state.objects.find(o => o.type === 'OWN_SHIP');
       if (ownShipObj) {
-        shipGroup.position.x = ownShipObj.position.x * 2;
-        shipGroup.position.z = ownShipObj.position.y * 2;
-        shipGroup.rotation.y = (ownShipObj.heading * Math.PI) / 180;
+        const shipX = ownShipObj.position.x * 2;
+        const shipZ = ownShipObj.position.y * 2;
+        const headingRad = (ownShipObj.heading * Math.PI) / 180;
+
+        shipGroup.position.x = shipX;
+        shipGroup.position.z = shipZ;
+        shipGroup.rotation.y = headingRad;
+        // Natural cruising wave bobbing and gentle pitch/roll
+        shipGroup.position.y = Math.sin(t * 4) * 0.12;
+        shipGroup.rotation.x = Math.cos(t * 3) * 0.015;
+        shipGroup.rotation.z = Math.sin(t * 3.5) * 0.012;
+
+        // Position wake flat on water behind ship based on heading
+        const wakeDist = -10;
+        wakeGroup.position.set(
+          shipX + Math.sin(headingRad) * wakeDist,
+          -0.55,
+          shipZ + Math.cos(headingRad) * wakeDist
+        );
+        wakeGroup.rotation.y = headingRad;
+        wakeMat.opacity = 0.25 + Math.sin(t * 8) * 0.15;
       }
 
       state.objects.forEach(obj => {
@@ -236,8 +270,9 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
         camera.lookAt(0, 0, 0);
       } else if (cameraMode === 'ship') {
         const shipPos = shipGroup.position;
-        camera.position.set(shipPos.x - 12 * Math.sin(shipGroup.rotation.y), shipPos.y + 7, shipPos.z - 18 * Math.cos(shipGroup.rotation.y));
-        camera.lookAt(shipPos.x, shipPos.y + 2, shipPos.z);
+        // Framed close and majestic so Gepard 3.9 dominates the viewport
+        camera.position.set(shipPos.x - 18 * Math.sin(shipGroup.rotation.y), shipPos.y + 5, shipPos.z - 22 * Math.cos(shipGroup.rotation.y));
+        camera.lookAt(shipPos.x, shipPos.y + 1.5, shipPos.z);
       } else if (cameraMode === 'target' && selectedObject && selectedObject.type !== 'OWN_SHIP') {
         const targetGroup = objectMeshMap.get(selectedObject.id);
         if (targetGroup) {
