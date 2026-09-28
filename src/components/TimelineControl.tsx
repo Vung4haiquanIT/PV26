@@ -1,6 +1,7 @@
 import React from 'react';
 import { Play, Pause, Square, RotateCcw, FastForward, History } from 'lucide-react';
 import { SimulationState } from '../types';
+import { createInitialSimulationState } from '../scenario/initialScenario';
 
 interface TimelineControlProps {
   state: SimulationState;
@@ -25,7 +26,7 @@ export const TimelineControl: React.FC<TimelineControlProps> = ({ state, setStat
   };
 
   const handleReset = () => {
-    setState(s => ({ ...s, isPlaying: false, time: 90 }));
+    setState(createInitialSimulationState());
   };
 
   const handleSpeedChange = (speed: number) => {

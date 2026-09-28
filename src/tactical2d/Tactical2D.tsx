@@ -25,8 +25,9 @@ export const Tactical2D: React.FC<Tactical2DProps> = ({ state, setState }) => {
   const [advAltitude, setAdvAltitude] = useState(300);
 
   const openAdvancedForType = (type: 'UAV' | 'USV' | 'TARGET') => {
+    const idx = state.objects.length + 1;
     setAdvType(type);
-    setAdvName(type === 'UAV' ? `UAV-Attack-${Math.floor(Math.random() * 90 + 10)}` : type === 'USV' ? `USV-Boat-${Math.floor(Math.random() * 90 + 10)}` : `Target-${Math.floor(Math.random() * 90 + 10)}`);
+    setAdvName(type === 'UAV' ? `UAV-Attack-${idx}` : type === 'USV' ? `USV-Boat-${idx}` : `Target-${idx}`);
     setAdvBearing(type === 'UAV' ? 30 : type === 'USV' ? 120 : 45);
     setAdvRange(15);
     setAdvSpeed(type === 'UAV' ? 60 : 35);
@@ -35,6 +36,7 @@ export const Tactical2D: React.FC<Tactical2DProps> = ({ state, setState }) => {
   };
 
   const handleAdvancedSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     const radAngle = (advBearing * Math.PI) / 180;
     const x = parseFloat((advRange * Math.sin(radAngle)).toFixed(1));
     const y = parseFloat((advRange * Math.cos(radAngle)).toFixed(1));
@@ -111,26 +113,28 @@ export const Tactical2D: React.FC<Tactical2DProps> = ({ state, setState }) => {
   };
 
   const handleAddObject = (type: 'UAV' | 'USV' | 'WAYPOINT' | 'TARGET') => {
-    const angle = Math.random() * Math.PI * 2;
+    const idx = state.objects.length + 1;
+    const angleDeg = (idx * 45) % 360;
+    const rad = (angleDeg * Math.PI) / 180;
     const dist = radarRange * (type === 'WAYPOINT' ? 0.8 : 0.5);
-    const x = Math.cos(angle) * dist;
-    const y = Math.sin(angle) * dist;
+    const x = parseFloat((dist * Math.sin(rad)).toFixed(1));
+    const y = parseFloat((dist * Math.cos(rad)).toFixed(1));
     const newId = `${type.toLowerCase()}-${Date.now().toString().slice(-4)}`;
 
     const newObj: SimulationObject = {
       id: newId,
-      name: type === 'WAYPOINT' ? `WP-${Math.floor(Math.random() * 90 + 10)}` : `${type === 'UAV' ? 'UAV-FPV' : type === 'USV' ? 'USV-CaoTốc' : 'Mục tiêu'} #${Math.floor(Math.random() * 90 + 10)}`,
+      name: type === 'WAYPOINT' ? `WP-${idx}` : `${type === 'UAV' ? 'UAV-FPV' : type === 'USV' ? 'USV-CaoTốc' : 'Mục tiêu'} #${idx}`,
       type: type,
-      position: { x: parseFloat(x.toFixed(1)), y: parseFloat(y.toFixed(1)) },
-      heading: Math.floor(Math.random() * 360),
+      position: { x, y },
+      heading: (angleDeg + 180) % 360,
       speed: type === 'UAV' ? 60 : type === 'USV' ? 30 : type === 'WAYPOINT' ? 0 : 15,
       altitude: type === 'UAV' ? 500 : 0,
       status: type === 'WAYPOINT' ? 'TUẦN TRA' : 'BÁO ĐỘNG',
       timestamp: '10:30:15',
       range: parseFloat(dist.toFixed(1)),
-      bearing: Math.floor((angle * 180 / Math.PI + 360) % 360),
+      bearing: angleDeg,
       rcs: type === 'UAV' ? 0.1 : 2.0,
-      history: [{ x: parseFloat(x.toFixed(1)), y: parseFloat(y.toFixed(1)) }]
+      history: [{ x, y }]
     };
 
     setState(s => ({

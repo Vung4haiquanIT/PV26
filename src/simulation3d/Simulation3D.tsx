@@ -23,8 +23,8 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
 
     // Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x060b18);
-    scene.fog = new THREE.FogExp2(0x060b18, 0.012);
+    scene.background = new THREE.Color(0x0ea5e9);
+    scene.fog = new THREE.FogExp2(0x0ea5e9, 0.004);
 
     // Camera
     const camera = new THREE.PerspectiveCamera(zoomLevel, width / height, 0.1, 1000);
@@ -37,24 +37,24 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
 
-    // Lights
-    const ambientLight = new THREE.AmbientLight(0xcfd8dc, 0.8);
+    // Lights (Bright Daytime Maritime)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 2.0);
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.3);
-    dirLight.position.set(50, 80, 40);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
+    dirLight.position.set(100, 150, 100);
     dirLight.castShadow = true;
     scene.add(dirLight);
 
-    const hemiLight = new THREE.HemisphereLight(0x38bdf8, 0x050a18, 0.6);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x0284c7, 1.5);
     scene.add(hemiLight);
 
     // Ocean / Sea with distant mountains/islands as in reference image
     const oceanGeo = new THREE.PlaneGeometry(350, 350, 40, 40);
     const oceanMat = new THREE.MeshStandardMaterial({
       color: 0x0284c7,
-      roughness: 0.2,
-      metalness: 0.1,
+      roughness: 0.1,
+      metalness: 0.2,
       flatShading: true
     });
     const ocean = new THREE.Mesh(oceanGeo, oceanMat);
@@ -63,12 +63,12 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
     scene.add(ocean);
 
     // Distant low-poly islands/mountains in background
-    const mountainMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7, flatShading: true });
+    const mountainMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.6, flatShading: true });
     for (let i = 0; i < 4; i++) {
-      const mGeo = new THREE.ConeGeometry(25 + i * 10, 15 + i * 5, 5);
+      const mGeo = new THREE.ConeGeometry(25 + i * 10, 18 + i * 5, 5);
       const mMesh = new THREE.Mesh(mGeo, mountainMat);
       const angle = (i / 4) * Math.PI * 2 + 0.5;
-      mMesh.position.set(Math.cos(angle) * 120, 5, Math.sin(angle) * 120);
+      mMesh.position.set(Math.cos(angle) * 120, 6, Math.sin(angle) * 120);
       scene.add(mMesh);
     }
 
@@ -390,11 +390,40 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
 
         {/* Right Floating Zoom/Camera Controls matching image */}
         <div className="absolute right-4 bottom-12 bg-[#030712]/90 border border-cyan-900/60 p-2 rounded-xl flex flex-col items-center space-y-3 z-20 shadow-xl backdrop-blur">
-          <button className="p-2 rounded-lg bg-[#050b1a] border border-cyan-950 text-slate-300 hover:text-white" title="Chụp ảnh màn hình">
+          <button
+            onClick={() => {
+              try {
+                const canvas = containerRef.current?.querySelector('canvas');
+                if (canvas) {
+                  const url = canvas.toDataURL('image/png');
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `pv26-tactical-3d-${Date.now().toString().slice(-4)}.png`;
+                  a.click();
+                }
+              } catch (err) {
+                console.error(err);
+              }
+            }}
+            className="p-2 rounded-lg bg-[#050b1a] border border-cyan-950 text-slate-300 hover:text-white transition-colors"
+            title="Chụp ảnh màn hình 3D"
+          >
             <Camera className="w-4 h-4 text-cyan-400" />
           </button>
           <div className="h-[1px] w-full bg-cyan-950"></div>
-          <button className="p-2 rounded-lg bg-[#050b1a] border border-cyan-950 text-slate-300 hover:text-white" title="Toàn màn hình">
+          <button
+            onClick={() => {
+              if (containerRef.current) {
+                if (!document.fullscreenElement) {
+                  containerRef.current.requestFullscreen().catch(() => {});
+                } else {
+                  document.exitFullscreen().catch(() => {});
+                }
+              }
+            }}
+            className="p-2 rounded-lg bg-[#050b1a] border border-cyan-950 text-slate-300 hover:text-white transition-colors"
+            title="Toàn màn hình"
+          >
             <Maximize2 className="w-4 h-4" />
           </button>
           <div className="h-[1px] w-full bg-cyan-950"></div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { SimulationState, SimulationObject, ScenarioBranch, SolverResult } from '../types';
-import { Bot, Cpu, AlertTriangle, Layers, Play, CheckCircle2, ShieldAlert, Sparkles, ArrowRight, RefreshCw, Database } from 'lucide-react';
+import { Bot, Cpu, AlertTriangle, Layers, Play, CheckCircle2, ShieldAlert, Sparkles, ArrowRight, RefreshCw, Database, Check } from 'lucide-react';
+import { runSolverRegistry } from '../solver/solverRegistry';
 
 interface AIAnalysisPanelProps {
   state: SimulationState;
@@ -17,6 +18,31 @@ export const AIAnalysisPanel: React.FC<AIAnalysisPanelProps> = ({ state, setStat
     analysis: string;
   } | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
+
+  // Run Solver Registry on current state
+  const computedSolvers = runSolverRegistry(state);
+
+  const handleConfirmSolver = (solverId: string) => {
+    setState(s => {
+      const updatedSolvers = (s.solvers.length > 0 ? s.solvers : computedSolvers).map(sol =>
+        sol.solverId === solverId ? { ...sol, confirmed: true, confirmedAt: new Date().toLocaleTimeString() } : sol
+      );
+      return {
+        ...s,
+        solvers: updatedSolvers,
+        events: [
+          {
+            id: `ev-conf-${Date.now()}`,
+            time: Math.floor(s.time),
+            title: `Chỉ huy xác nhận Solver: ${solverId}`,
+            description: `Sĩ quan trực chiến đã kiểm tra và phê duyệt kết quả tính toán chuyên môn từ Solver Registry.`,
+            type: 'ACTION'
+          },
+          ...s.events
+        ]
+      };
+    });
+  };
 
   // 1. AI Analysis & State parsing from SimulationState
   const activeObjects = state.objects.filter(o => o.status !== 'ĐÃ TIÊU DIỆT' && o.type !== 'OWN_SHIP');
@@ -38,18 +64,6 @@ export const AIAnalysisPanel: React.FC<AIAnalysisPanelProps> = ({ state, setStat
     ? 'PROB-AIR-RAID-01' 
     : 'PROB-SURFACE-ASSAULT-02';
 
-  // Appropriate Solver
-  const activeSolver: SolverResult = {
-    solverId: uavCount > 0 ? 'SOLVER-JAMMING-VECTOR' : 'SOLVER-EVASIVE-MANEUVER',
-    problemName: problemId,
-    inputSummary: `${activeObjects.length} mục tiêu đang tiếp cận | Sóng cấp ${state.environment.seaState}`,
-    cpa: parseFloat((Math.random() * 1.5 + 0.4).toFixed(2)),
-    timeToCPA: Math.floor(Math.random() * 45 + 30),
-    recommendedAction: uavCount > 0 ? 'Kích hoạt Gây nhiễu Đa tần & Phóng mồi bẫy' : 'Bẻ lái chuyển hướng né tránh 45 độ',
-    validationStatus: 'ĐẠT',
-    confidence: 94
-  };
-
   // Current State Summary
   const currentSummary = `Hệ thống ghi nhận thời gian t=${state.time}s. Phát hiện ${uavCount} mục tiêu UAV và ${usvCount} mục tiêu USV đang cơ động tiếp cận biên đội tàu chiến đấu.`;
 
@@ -57,9 +71,6 @@ export const AIAnalysisPanel: React.FC<AIAnalysisPanelProps> = ({ state, setStat
   const detectedChanges = activeObjects.length > 0 
     ? `Mục tiêu ${activeObjects[0].name} thay đổi vận tốc lên ${activeObjects[0].speed} (${activeObjects[0].type === 'UAV' ? 'm/s' : 'kts'}), góc phương vị ${activeObjects[0].bearing || 45}°.`
     : 'Không ghi nhận biến động quỹ đạo bất thường trong 30s qua.';
-
-  // Data to Confirm
-  const dataToConfirm = 'Xác nhận cự ly khóa mục tiêu radar (RCS 0.1m² đối với UAV FPV) và băng tần tác chiến điện tử.';
 
   // Potential Developments
   const potentialDevelopments = uavCount > 0 
@@ -72,7 +83,6 @@ export const AIAnalysisPanel: React.FC<AIAnalysisPanelProps> = ({ state, setStat
     setSimulationResult(null);
 
     setTimeout(() => {
-      // Clone state for simulation run
       const simResult = {
         branchId: branch.id,
         cpa: parseFloat((Math.random() * 1.2 + 0.2).toFixed(2)),
@@ -84,7 +94,6 @@ export const AIAnalysisPanel: React.FC<AIAnalysisPanelProps> = ({ state, setStat
       setSimulationResult(simResult);
       setIsSimulating(false);
 
-      // Log event to SimulationState
       setState(s => ({
         ...s,
         events: [
@@ -156,19 +165,61 @@ export const AIAnalysisPanel: React.FC<AIAnalysisPanelProps> = ({ state, setStat
           </div>
         </div>
 
-        {/* 4, 5, 6. Xác định ProblemID & Gọi Solver phù hợp */}
-        <div className="bg-[#050b1a] border border-cyan-950 p-3.5 rounded-lg space-y-2">
-          <div className="flex items-center justify-between">
+        {/* Professional Solver Registry Section */}
+        <div className="bg-[#050b1a] border border-cyan-950 p-3.5 rounded-lg space-y-3">
+          <div className="flex items-center justify-between border-b border-cyan-900/60 pb-2">
             <span className="font-bold text-cyan-300 uppercase text-[11px] flex items-center gap-1.5 font-mono">
-              <Database className="w-3.5 h-3.5 text-blue-400" /> Đề xuất Solver & Dữ liệu xác nhận
+              <Database className="w-3.5 h-3.5 text-blue-400" /> HỆ THỐNG SOLVER CHUYÊN MÔN (SOLVER REGISTRY)
             </span>
             <span className="text-[10px] px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800 font-mono">
-              {activeSolver.solverId} (Độ tin cậy: {activeSolver.confidence}%)
+              {computedSolvers.length} Solvers Hoạt động
             </span>
           </div>
-          <div className="text-[11px] font-mono text-slate-300 space-y-1">
-            <div>• <strong className="text-cyan-200">Hành động đề xuất:</strong> {activeSolver.recommendedAction}</div>
-            <div>• <strong className="text-cyan-200">Cần xác nhận:</strong> {dataToConfirm}</div>
+
+          <div className="space-y-2.5">
+            {computedSolvers.map(solver => {
+              const currentSaved = state.solvers.find(s => s.solverId === solver.solverId) || solver;
+              const isConfirmed = currentSaved.confirmed;
+
+              return (
+                <div key={solver.solverId} className="bg-[#030712] border border-cyan-950/80 p-3 rounded-md space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-amber-300 font-mono">{solver.problemName}</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                        solver.validationStatus === 'NGUY HIỂM' ? 'bg-rose-950 text-rose-300 border border-rose-800' :
+                        solver.validationStatus === 'CẢNH BÁO' ? 'bg-amber-950 text-amber-300 border border-amber-800' :
+                        'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                      }`}>
+                        {solver.validationStatus} ({solver.confidence}%)
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-[11px] font-mono text-slate-300 space-y-1">
+                    <div>• <strong className="text-slate-400">Đầu vào:</strong> {solver.inputSummary}</div>
+                    {solver.cpa > 0 && <div>• <strong className="text-slate-400">CPA:</strong> {solver.cpa} km (t={solver.timeToCPA}s)</div>}
+                    <div>• <strong className="text-cyan-200">Đề xuất:</strong> {solver.recommendedAction}</div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-[10px] font-mono">
+                    <span className="text-slate-500">ID: {solver.solverId}</span>
+                    {isConfirmed ? (
+                      <span className="text-emerald-400 font-bold flex items-center gap-1">
+                        <Check className="w-3 h-3" /> ĐÃ XÁC NHẬN ({currentSaved.confirmedAt || 'OK'})
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleConfirmSolver(solver.solverId)}
+                        className="px-2.5 py-1 bg-cyan-700 hover:bg-cyan-600 text-white rounded font-bold transition-all shadow cursor-pointer"
+                      >
+                        [ XÁC NHẬN KẾT QUẢ ]
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

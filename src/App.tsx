@@ -12,6 +12,7 @@ import { ScenarioModal } from './scenario/ScenarioModal';
 import { DataModal } from './data/DataModal';
 import { EnvironmentModal } from './components/EnvironmentModal';
 import { Bot, GitBranch, X, Cpu } from 'lucide-react';
+import { tick } from './simulation/SimulationEngine';
 
 export default function App() {
   const [state, setState] = useState<SimulationState>(createInitialSimulationState());
@@ -30,71 +31,14 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
-  // Simulation Engine Loop
+  // Simulation Engine Loop using independent SimulationEngine.tick()
   useEffect(() => {
     if (!state.isPlaying) return;
 
     const interval = setInterval(() => {
       setState(prev => {
         if (!prev.isPlaying) return prev;
-        const nextTime = prev.time + 0.5 * prev.speed;
-        if (nextTime >= prev.duration) {
-          return { ...prev, isPlaying: false, time: prev.duration };
-        }
-
-        // Update object positions heading towards own ship (0,0)
-        const updatedObjects = prev.objects.map(obj => {
-          if (obj.type === 'OWN_SHIP') return obj;
-          if (obj.status === 'ĐÃ TIÊU DIỆT' || obj.status === 'ĐÃ NỔ / VA CHẠM') return obj;
-
-          const dxToShip = 0 - obj.position.x;
-          const dyToShip = 0 - obj.position.y;
-          const distanceToShip = Math.sqrt(dxToShip * dxToShip + dyToShip * dyToShip);
-
-          let status: any = obj.status;
-          if (distanceToShip <= 0.8) {
-            status = 'ĐÃ NỔ / VA CHẠM';
-          }
-
-          // Steer heading towards (0,0)
-          const angleToShip = Math.atan2(dxToShip, dyToShip) * (180 / Math.PI);
-          const heading = (angleToShip + 360) % 360;
-
-          const rad = (heading * Math.PI) / 180;
-          const speedFactor = 0.005 * (obj.speed / 10) * prev.speed;
-          const dx = Math.sin(rad) * speedFactor;
-          const dy = Math.cos(rad) * speedFactor;
-
-          const newX = parseFloat((obj.position.x + dx).toFixed(2));
-          const newY = parseFloat((obj.position.y + dy).toFixed(2));
-          const range = parseFloat(distanceToShip.toFixed(1));
-
-          let newAltitude = obj.altitude;
-          if (obj.type === 'UAV') {
-            const initialDist = obj.range || 15;
-            const altRatio = Math.max(0, distanceToShip / initialDist);
-            newAltitude = Math.max(0, parseFloat((obj.altitude * altRatio).toFixed(1)));
-          }
-
-          const newHistory = [...obj.history, { x: newX, y: newY }];
-          if (newHistory.length > 30) newHistory.shift();
-
-          return {
-            ...obj,
-            heading: Math.round(heading),
-            position: { x: newX, y: newY },
-            altitude: newAltitude,
-            range,
-            status,
-            history: newHistory
-          };
-        });
-
-        return {
-          ...prev,
-          time: nextTime,
-          objects: updatedObjects
-        };
+        return tick(prev, 0.5);
       });
     }, 500);
 

@@ -3,8 +3,9 @@ export type ObjectType = 'OWN_SHIP' | 'UAV' | 'USV' | 'WAYPOINT' | 'ENVIRONMENT_
 export type ObjectStatus = 'SẢN SÀNG' | 'ĐANG TIẾP CẬN' | 'BÁO ĐỘNG' | 'MỤC TIÊU KHÓA' | 'ĐÃ TIÊU DIỆT' | 'TUẦN TRA' | 'ĐÃ NỔ / VA CHẠM';
 
 export interface Position {
-  x: number; // km relative to own ship or lat/long offset
-  y: number; // km
+  x: number; // km relative to own ship
+  y: number; // km relative to own ship
+  z?: number; // optional altitude coordinate
   lat?: string;
   lng?: string;
 }
@@ -36,12 +37,22 @@ export interface EnvironmentState {
 
 export interface ScenarioBranch {
   id: string;
+  parentBranchId?: string;
   name: string;
   description: string;
   condition: string;
   simulationTime: number; // seconds
   expectedStatus: string;
+  initialState?: {
+    ownShip?: SimulationObject;
+    objects: SimulationObject[];
+  };
+  finalState?: {
+    objects: SimulationObject[];
+  };
   objects: SimulationObject[];
+  events?: ScenarioEvent[];
+  solverResults?: SolverResult[];
   isActive: boolean;
 }
 
@@ -80,6 +91,9 @@ export interface SolverResult {
   recommendedAction: string;
   validationStatus: 'ĐẠT' | 'CẢNH BÁO' | 'NGUY HIỂM';
   confidence: number; // percentage
+  timestamp?: string | number;
+  confirmed?: boolean;
+  confirmedAt?: string;
 }
 
 export interface TrainingSession {
@@ -98,6 +112,9 @@ export interface TrainingSession {
 
 export interface ReplayEvent {
   timestamp: number;
+  simulationTime?: number;
+  branchId?: string;
+  eventType?: string;
   state: {
     time: number;
     objects: SimulationObject[];
@@ -106,7 +123,7 @@ export interface ReplayEvent {
 }
 
 export interface SimulationState {
-  time: number; // current seconds in simulation (e.g. 90s for 01:30)
+  time: number; // current seconds in simulation
   duration: number; // total duration e.g. 600s
   isPlaying: boolean;
   speed: number; // 0.5, 1, 2, 5, 10
@@ -118,6 +135,7 @@ export interface SimulationState {
   activeBranchId: string;
   events: ScenarioEvent[];
   solvers: SolverResult[];
+  solverResults?: SolverResult[]; // Alias for compatibility
   trainingSession: TrainingSession;
   replayHistory: ReplayEvent[];
   activeTab: '2d' | '3d' | 'ai' | 'training' | 'scenario' | 'data';
