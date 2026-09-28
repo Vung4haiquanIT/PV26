@@ -73,18 +73,18 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
       scene.add(mMesh);
     }
 
-    // Load PV26_Warship.glb Model for Own Ship
+    // Load PV26_Warship_Detailed.glb Model for Own Ship (+Z forward)
     const shipGroup = new THREE.Group();
     scene.add(shipGroup);
 
     const gltfLoader = new GLTFLoader();
     gltfLoader.load(
-      '/PV26_Warship.glb',
+      '/PV26_Warship_Detailed.glb',
       (gltf) => {
         const model = gltf.scene;
-        // Scale and orient model (+X bow aligned to simulation forward convention)
+        // Scale and orient model (+Z bow forward)
         model.scale.set(0.08, 0.08, 0.08);
-        model.rotation.y = -Math.PI / 2;
+        model.rotation.y = 0;
         model.position.set(0, 0, 0);
         model.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
@@ -96,7 +96,7 @@ export const Simulation3D: React.FC<Simulation3DProps> = ({ state }) => {
       },
       undefined,
       (error) => {
-        console.error('Error loading PV26_Warship.glb:', error);
+        console.error('Error loading PV26_Warship_Detailed.glb:', error);
         // Fallback procedural box if load fails
         const fallbackGeo = new THREE.BoxGeometry(4.2, 2.0, 16);
         const fallbackMat = new THREE.MeshStandardMaterial({ color: 0x64748b });
