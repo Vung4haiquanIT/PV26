@@ -21,6 +21,46 @@ export default function App() {
   const [isBranchOpen, setIsBranchOpen] = useState(false);
   const [currentTimeStr, setCurrentTimeStr] = useState('10:30:15 UTC');
 
+  const [aiPos, setAiPos] = useState<{ x: number; y: number }>({ x: typeof window !== 'undefined' ? Math.max(20, window.innerWidth - 460) : 800, y: 80 });
+  const [isDraggingAI, setIsDraggingAI] = useState(false);
+  const dragRef = React.useRef<{ startX: number; startY: number; initialX: number; initialY: number }>({ startX: 0, startY: 0, initialX: 0, initialY: 0 });
+
+  const handleMouseDownHeader = (e: React.MouseEvent) => {
+    setIsDraggingAI(true);
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: aiPos.x,
+      initialY: aiPos.y
+    };
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingAI) return;
+      const dx = e.clientX - dragRef.current.startX;
+      const dy = e.clientY - dragRef.current.startY;
+      setAiPos({
+        x: Math.max(0, Math.min(window.innerWidth - 300, dragRef.current.initialX + dx)),
+        y: Math.max(0, Math.min(window.innerHeight - 200, dragRef.current.initialY + dy))
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingAI(false);
+    };
+
+    if (isDraggingAI) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDraggingAI]);
+
   // Clock ticker
   useEffect(() => {
     const timer = setInterval(() => {
@@ -91,20 +131,29 @@ export default function App() {
         </div>
       </div>
 
-      {/* Collapsible AI Analysis Drawer / Panel Overlay */}
+      {/* Draggable AI Analysis Drawer / Panel Overlay */}
       {isAIOpen && (
-        <div className="fixed right-2 top-20 bottom-16 w-[440px] z-40 bg-[#070e22]/95 backdrop-blur-md border border-cyan-800/80 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200">
-          <div className="bg-[#050b1a] px-4 py-3 border-b border-cyan-900/60 flex items-center justify-between">
+        <div
+          style={{ left: `${aiPos.x}px`, top: `${aiPos.y}px` }}
+          className="absolute w-[440px] h-[calc(100vh-140px)] z-40 bg-[#070e22]/95 backdrop-blur-md border border-cyan-800/80 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in duration-150"
+        >
+          <div
+            onMouseDown={handleMouseDownHeader}
+            className="bg-[#050b1a] px-4 py-3 border-b border-cyan-900/60 flex items-center justify-between cursor-grab active:cursor-grabbing select-none"
+            title="Kéo thả để di chuyển bảng"
+          >
             <div className="flex items-center space-x-2">
               <Bot className="w-5 h-5 text-amber-400" />
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-200">CỐ VẤN AI TÁC CHIẾN CHUYÊN SÂU</h3>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-200 flex items-center gap-1.5">
+                  CỐ VẤN AI TÁC CHIẾN CHUYÊN SÂU <span className="text-[9px] px-1.5 py-0.5 bg-cyan-950 text-cyan-400 rounded border border-cyan-800 font-mono">Kéo để di chuyển</span>
+                </h3>
                 <p className="text-[10px] text-slate-400">Phân tích đa luồng, đề xuất phương án đối phó UAV/USV</p>
               </div>
             </div>
             <button
               onClick={() => setIsAIOpen(false)}
-              className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+              className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
